@@ -430,14 +430,29 @@ class PaperTrader:
         for sig in list(self.pending_entries):
             slug = sig["market"]
             if slug not in prices:
+                self.add_activity(
+                    f"ENTRY SKIPPED: {slug[:40]} -- price not available on execution cycle",
+                    "signal"
+                )
+                log.info(f"ENTRY SKIPPED: {slug[:40]} -- price not available on execution cycle")
                 self.pending_entries.remove(sig)
                 continue
 
             if len(self.open_positions) >= MAX_CONCURRENT:
+                self.add_activity(
+                    f"ENTRY SKIPPED: {slug[:40]} -- max positions ({MAX_CONCURRENT}) reached",
+                    "signal"
+                )
+                log.info(f"ENTRY SKIPPED: {slug[:40]} -- max positions reached")
                 self.pending_entries.remove(sig)
                 continue
 
             if self.capital < MAX_POSITION_SIZE * 0.5:
+                self.add_activity(
+                    f"ENTRY SKIPPED: {slug[:40]} -- insufficient capital (${self.capital:.0f})",
+                    "signal"
+                )
+                log.info(f"ENTRY SKIPPED: {slug[:40]} -- insufficient capital")
                 self.pending_entries.remove(sig)
                 continue
 
