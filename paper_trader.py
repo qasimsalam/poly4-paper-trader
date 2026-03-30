@@ -38,7 +38,7 @@ INITIAL_CAPITAL = 10_000.0
 MAX_POSITION_SIZE = 500.0
 MAX_CONCURRENT = 20           # CHANGE 2: increased from 10 to 20
 POLL_INTERVAL = 120           # seconds (2 minutes)
-MARKET_FETCH_LIMIT = 1000     # CHANGE 1: increased from 200 to 1000
+MARKET_FETCH_LIMIT = 600      # 600 markets (1000 too slow for 2-min polls)
 
 # Costs (same as backtester_realistic.py)
 SPREAD_COST_PCT = 0.005  # 0.5% each way
@@ -658,9 +658,10 @@ class PaperTrader:
         log.info(f"Dashboard: http://localhost:3000")
         log.info("=" * 60)
 
-        # Fetch market list
+        # Fetch market list (in thread pool)
         log.info("Fetching market list...")
-        self.markets = fetch_market_list()
+        loop = asyncio.get_event_loop()
+        self.markets = await loop.run_in_executor(None, fetch_market_list)
         log.info(f"Found {len(self.markets)} markets (after filtering)")
 
         while True:
@@ -671,10 +672,11 @@ class PaperTrader:
 
                 # Refresh market list every 30 polls (1 hour)
                 if self.poll_count % 30 == 0:
-                    self.markets = fetch_market_list()
+                    self.markets = await loop.run_in_executor(None, fetch_market_list)
 
-                # Poll prices
-                prices = fetch_current_prices(self.markets)
+                # Poll prices (in thread pool to avoid blocking event loop)
+                loop = asyncio.get_event_loop()
+                prices = await loop.run_in_executor(None, fetch_current_prices, self.markets)
                 n_prices = len(prices)
                 self.last_poll = now.isoformat()
 
