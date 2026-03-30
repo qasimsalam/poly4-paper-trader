@@ -273,6 +273,16 @@ class PaperTrader:
             if len(buf) < SPIKE_WINDOW_CANDLES + 1:
                 continue
 
+            # Price filter: skip resolved/near-resolved markets
+            if current_price < 0.10 or current_price > 0.90:
+                continue
+
+            # Median price filter: skip markets that aren't in the uncertain range
+            buf_prices = [p for _, p in buf]
+            med_price = float(np.median(buf_prices))
+            if med_price < 0.15 or med_price > 0.85:
+                continue
+
             markets_scanned += 1
 
             # Cooldown check
