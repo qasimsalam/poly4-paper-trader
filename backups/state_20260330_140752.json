@@ -1,0 +1,188 @@
+{
+  "open_positions": [
+    {
+      "market": "will-the-highest-temperature-in-miami-be-between-80-81\u00b0f-on-",
+      "direction": "long",
+      "entry_time": 1774861420.992579,
+      "entry_price": 0.28,
+      "fill_price": 0.28196,
+      "pos_value": 500.0,
+      "shares": 1773.3011774719819
+    },
+    {
+      "market": "unit-fdv-above-$600m-one-day-after-launch?",
+      "direction": "short",
+      "entry_time": 1774863903.79393,
+      "entry_price": 0.18,
+      "fill_price": 0.17873999999999998,
+      "pos_value": 500.0,
+      "shares": 2797.359292827571
+    },
+    {
+      "market": "will-sc-corinthians-paulista-win-on-2026-04-05?",
+      "direction": "short",
+      "entry_time": 1774864191.907663,
+      "entry_price": 0.41,
+      "fill_price": 0.40713,
+      "pos_value": 500.0,
+      "shares": 1228.1089578267383
+    },
+    {
+      "market": "will-o'higgins-fc-win-on-2026-04-03?",
+      "direction": "short",
+      "entry_time": 1774865784.504328,
+      "entry_price": 0.46,
+      "fill_price": 0.45678,
+      "pos_value": 500.0,
+      "shares": 1094.6188537151363
+    },
+    {
+      "market": "will-mikael-ishak-score-the-most-goals-in-the-2025-26-uefa-e",
+      "direction": "short",
+      "entry_time": 1774866500.90095,
+      "entry_price": 0.66,
+      "fill_price": 0.6553800000000001,
+      "pos_value": 500.0,
+      "shares": 762.9161707711556
+    },
+    {
+      "market": "will-clint-twedt-ball-be-the-democratic-nominee-for-ia-02?",
+      "direction": "short",
+      "entry_time": 1774866500.9043,
+      "entry_price": 0.29,
+      "fill_price": 0.28797,
+      "pos_value": 500.0,
+      "shares": 1736.2919748584923
+    },
+    {
+      "market": "will-heart-of-midlothian-fc-vs.-motherwell-fc-end-in-a-draw?",
+      "direction": "short",
+      "entry_time": 1774868902.556921,
+      "entry_price": 0.24,
+      "fill_price": 0.23831999999999998,
+      "pos_value": 500.0,
+      "shares": 2098.019469620678
+    },
+    {
+      "market": "will-kilmarnock-fc-win-on-2026-04-11?",
+      "direction": "short",
+      "entry_time": 1774869042.8810182,
+      "entry_price": 0.39,
+      "fill_price": 0.38727,
+      "pos_value": 500.0,
+      "shares": 1291.0889043819557
+    },
+    {
+      "market": "will-dundee-fc-win-on-2026-04-11?",
+      "direction": "short",
+      "entry_time": 1774869042.8817,
+      "entry_price": 0.28,
+      "fill_price": 0.27804,
+      "pos_value": 500.0,
+      "shares": 1798.3024025320096
+    },
+    {
+      "market": "will-the-highest-temperature-in-san-francisco-be-between-60-",
+      "direction": "short",
+      "entry_time": 1774869746.57792,
+      "entry_price": 0.19,
+      "fill_price": 0.18867,
+      "pos_value": 500.0,
+      "shares": 2650.1298563629616
+    },
+    {
+      "market": "will-the-highest-temperature-in-new-york-city-be-59\u00b0f-or-bel",
+      "direction": "long",
+      "entry_time": 1774870168.495084,
+      "entry_price": 0.27,
+      "fill_price": 0.27188999999999997,
+      "pos_value": 500.0,
+      "shares": 1838.9789988598332
+    },
+    {
+      "market": "will-fk-rostov-win-on-2026-04-05?",
+      "direction": "short",
+      "entry_time": 1774871160.987181,
+      "entry_price": 0.35,
+      "fill_price": 0.34754999999999997,
+      "pos_value": 500.0,
+      "shares": 1438.641922025608
+    },
+    {
+      "market": "will-the-highest-temperature-in-munich-be-10\u00b0c-on-april-3?",
+      "direction": "short",
+      "entry_time": 1774873590.348649,
+      "entry_price": 0.16,
+      "fill_price": 0.15888,
+      "pos_value": 500.0,
+      "shares": 3147.029204431017
+    },
+    {
+      "market": "will-tisza-\u2013-respect-and-freedom-party-(tisza)-finish-with-t",
+      "direction": "long",
+      "entry_time": 1774873590.35214,
+      "entry_price": 0.26,
+      "fill_price": 0.26182,
+      "pos_value": 500.0,
+      "shares": 1909.708960354442
+    },
+    {
+      "market": "platense-vs.-racing-de-chivilcoy",
+      "direction": "short",
+      "entry_time": 1774875313.263656,
+      "entry_price": 0.49,
+      "fill_price": 0.48657,
+      "pos_value": 500.0,
+      "shares": 1027.6013728754342
+    },
+    {
+      "market": "will-fk-dukla-praha-win-on-2026-04-18?",
+      "direction": "long",
+      "entry_time": 1774877056.317801,
+      "entry_price": 0.16,
+      "fill_price": 0.16111999999999999,
+      "pos_value": 500.0,
+      "shares": 3103.2770605759683
+    },
+    {
+      "market": "will-the-highest-temperature-in-warsaw-be-14\u00b0c-on-april-3?",
+      "direction": "short",
+      "entry_time": 1774878361.946284,
+      "entry_price": 0.22,
+      "fill_price": 0.21846,
+      "pos_value": 500.0,
+      "shares": 2288.748512313467
+    },
+    {
+      "market": "will-the-highest-temperature-in-beijing-be-20\u00b0c-on-april-2?",
+      "direction": "long",
+      "entry_time": 1774882938.732875,
+      "entry_price": 0.23,
+      "fill_price": 0.23160999999999998,
+      "pos_value": 500.0,
+      "shares": 2158.801433444152
+    },
+    {
+      "market": "will-the-highest-temperature-in-shenzhen-be-25\u00b0c-on-april-3?",
+      "direction": "long",
+      "entry_time": 1774883654.13167,
+      "entry_price": 0.11,
+      "fill_price": 0.11077,
+      "pos_value": 500.0,
+      "shares": 4513.857542655954
+    },
+    {
+      "market": "will-donald-trump-post-80-99-truth-social-posts-from-march-3",
+      "direction": "long",
+      "entry_time": 1774885352.187125,
+      "entry_price": 0.27,
+      "fill_price": 0.27188999999999997,
+      "pos_value": 500.0,
+      "shares": 1838.9789988598332
+    }
+  ],
+  "capital": 2168.695526778308,
+  "trade_count": 24,
+  "started_at": "2026-03-30T08:00:59.540122+00:00",
+  "last_poll": "2026-03-30T21:04:37.405191+00:00"
+}

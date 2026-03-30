@@ -107,6 +107,7 @@ async def fetch_market_list_async() -> tuple[list[dict], dict[str, int]]:
                     async with session.get(f"{GAMMA_API}/markets", params={
                         "limit": 100, "offset": offset, "order": "volume",
                         "ascending": "false", "closed": "false",
+                        "volume_num_min": 10000,
                     }) as resp:
                         if resp.status != 200:
                             break
@@ -353,7 +354,8 @@ class PaperTrader:
     # --- CHANGE 9: Stale price detection ---
 
     def check_stale_prices(self, prices: dict[str, float]):
-        for pos in self.open_positions:
+        STALE_FORCE_EXIT = 30  # force exit after 30 unchanged polls (1 hour)
+        for pos in list(self.open_positions):
             slug = pos["market"]
             if slug not in prices:
                 continue
@@ -363,10 +365,44 @@ class PaperTrader:
             else:
                 self.stale_counts[slug] = 0
             self.last_prices[slug] = cp
+
             if self.stale_counts[slug] == STALE_PRICE_THRESHOLD:
                 msg = f"WARNING: {slug[:40]} price unchanged for {STALE_PRICE_THRESHOLD}+ polls"
                 self.add_activity(msg, "signal")
                 log.warning(msg)
+
+            # Force exit after 30 unchanged polls (1 hour of no activity)
+            if self.stale_counts.get(slug, 0) >= STALE_FORCE_EXIT:
+                fill_price = apply_costs(cp, pos["direction"], is_entry=False)
+                if pos["direction"] == "long":
+                    pnl_per_share = fill_price - pos["fill_price"]
+                else:
+                    pnl_per_share = pos["fill_price"] - fill_price
+                pnl_dollar = pnl_per_share * pos["shares"]
+                self.capital += pos["pos_value"] + pnl_dollar
+                self.trade_count += 1
+                self.trade_history.append({
+                    "market": slug, "direction": pos["direction"],
+                    "entry_price": pos["entry_price"], "exit_price": cp,
+                    "fill_entry": pos["fill_price"], "fill_exit": fill_price,
+                    "pnl": pnl_dollar,
+                    "pnl_pct": pnl_dollar / pos["pos_value"] * 100 if pos["pos_value"] > 0 else 0,
+                    "hold_time": time.time() - pos["entry_time"],
+                    "reason": "STALE",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+                self.log_trade({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "market": slug, "action": "exit", "direction": pos["direction"],
+                    "price": cp, "fill_price": fill_price, "pnl": pnl_dollar,
+                })
+                color = "profit" if pnl_dollar > 0 else "loss"
+                self.add_activity(
+                    f"EXIT: {slug[:40]} (STALE - no activity for 1h) -- P&L: ${pnl_dollar:+.2f}", color)
+                log.info(f"EXIT: {slug[:40]} (STALE - no activity for 1h) -- P&L: ${pnl_dollar:+.2f}")
+                self.stale_counts.pop(slug, None)
+                self.cooldowns[slug] = self.poll_count + COOLDOWN_CANDLES
+                self.open_positions.remove(pos)
 
     # --- Signal detection ---
 
