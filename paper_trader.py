@@ -13,11 +13,12 @@ import csv
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,9 @@ GAMMA_API = "https://gamma-api.polymarket.com"
 
 INITIAL_CAPITAL = 10_000.0
 MAX_POSITION_SIZE = 500.0
-MAX_CONCURRENT = 10
-POLL_INTERVAL = 120  # seconds (2 minutes)
+MAX_CONCURRENT = 20           # CHANGE 2: increased from 10 to 20
+POLL_INTERVAL = 120           # seconds (2 minutes)
+MARKET_FETCH_LIMIT = 1000     # CHANGE 1: increased from 200 to 1000
 
 # Costs (same as backtester_realistic.py)
 SPREAD_COST_PCT = 0.005  # 0.5% each way
@@ -52,10 +54,14 @@ COOLDOWN_CANDLES = 15
 ADAPTIVE_MULT = 2.5
 
 PRICE_BUFFER_SIZE = 60  # 2 hours of 2-min candles
+STALE_PRICE_THRESHOLD = 10    # CHANGE 6: polls before flagging stale
 
 STATE_FILE = Path("state.json")
 TRADE_LOG = Path("trades/trade_log.csv")
 TEMPLATE_DIR = Path("templates")
+
+# CHANGE 3: patterns for short-duration binary markets
+BINARY_PATTERNS = re.compile(r'up.or.down|up-or-down', re.IGNORECASE)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("paper_trader")
@@ -78,10 +84,29 @@ def apply_costs(price: float, direction: str, is_entry: bool) -> float:
 # Market data
 # ---------------------------------------------------------------------------
 
+def _is_short_duration_binary(market: dict) -> bool:
+    """CHANGE 3: Check if market is a short-duration binary (up/down crypto)."""
+    q = market.get("question", "")
+    slug = market.get("slug", "")
+    if BINARY_PATTERNS.search(q) or BINARY_PATTERNS.search(slug):
+        return True
+    # Check end date within 24 hours
+    end_date = market.get("end_date", "")
+    if end_date:
+        try:
+            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            if end_dt - datetime.now(timezone.utc) < timedelta(hours=24):
+                return True
+        except (ValueError, TypeError):
+            pass
+    return False
+
+
 def fetch_market_list() -> list[dict]:
     """Fetch top active markets from Gamma API."""
     markets = []
-    for offset in range(0, 200, 100):
+    filtered_count = 0
+    for offset in range(0, MARKET_FETCH_LIMIT, 100):  # CHANGE 1: use MARKET_FETCH_LIMIT
         try:
             resp = requests.get(f"{GAMMA_API}/markets", params={
                 "limit": 100, "offset": offset, "order": "volume",
@@ -105,11 +130,20 @@ def fetch_market_list() -> list[dict]:
                     continue
             if token_ids and token_ids[0]:
                 slug = m.get("question", "unknown")[:60].lower().replace(" ", "-")
-                markets.append({
+                market_entry = {
                     "slug": slug,
                     "token_id": token_ids[0],
                     "question": m.get("question", ""),
-                })
+                    "end_date": m.get("endDate", ""),
+                }
+                # CHANGE 3: filter short-duration binaries
+                if _is_short_duration_binary(market_entry):
+                    filtered_count += 1
+                    continue
+                markets.append(market_entry)
+        time.sleep(0.05)
+    if filtered_count > 0:
+        log.info(f"Filtered {filtered_count} short-duration binary markets")
     return markets
 
 
@@ -175,11 +209,15 @@ class PaperTrader:
             "markets_scanned": 0,
             "largest_spike_pct": 0.0,
             "largest_spike_market": "",
-            "adaptive_filtered": "",  # market that passed fixed but not adaptive
+            "adaptive_filtered": "",
             "adaptive_thresh_used": 0.0,
-            "status_phase": "building",  # building | scanning | signal | monitoring
+            "status_phase": "building",
             "status_text": "",
         }
+
+        # CHANGE 6: stale price tracking — slug -> consecutive same-price count
+        self.stale_counts: dict[str, int] = {}
+        self.last_prices: dict[str, float] = {}
 
         self.load_state()
 
@@ -237,6 +275,75 @@ class PaperTrader:
         self.activity_feed.append(entry)
         if len(self.activity_feed) > 200:
             self.activity_feed = self.activity_feed[-200:]
+
+    # --- CHANGE 4: Resolution detection ---
+
+    def check_resolved_positions(self, prices: dict[str, float]):
+        """Check if any open positions have resolved (price at 0 or 1)."""
+        for pos in list(self.open_positions):
+            slug = pos["market"]
+            if slug not in prices:
+                continue
+            cp = prices[slug]
+            # Markets resolve to ~0 or ~1
+            if cp <= 0.01 or cp >= 0.99:
+                # Exit at resolution price
+                fill_price = apply_costs(cp, pos["direction"], is_entry=False)
+                if pos["direction"] == "long":
+                    pnl_per_share = fill_price - pos["fill_price"]
+                else:
+                    pnl_per_share = pos["fill_price"] - fill_price
+                pnl_dollar = pnl_per_share * pos["shares"]
+                self.capital += pos["pos_value"] + pnl_dollar
+                self.trade_count += 1
+
+                trade_record = {
+                    "market": slug,
+                    "direction": pos["direction"],
+                    "entry_price": pos["entry_price"],
+                    "exit_price": cp,
+                    "fill_entry": pos["fill_price"],
+                    "fill_exit": fill_price,
+                    "pnl": pnl_dollar,
+                    "pnl_pct": pnl_dollar / pos["pos_value"] * 100 if pos["pos_value"] > 0 else 0,
+                    "hold_time": time.time() - pos["entry_time"],
+                    "reason": "RESOLVED",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                self.trade_history.append(trade_record)
+                self.log_trade({
+                    "timestamp": trade_record["timestamp"],
+                    "market": slug, "action": "exit", "direction": pos["direction"],
+                    "price": cp, "fill_price": fill_price, "pnl": pnl_dollar,
+                })
+                color = "profit" if pnl_dollar > 0 else "loss"
+                self.add_activity(
+                    f"EXIT: {slug[:40]} (RESOLVED @ ${cp:.2f}) -- P&L: ${pnl_dollar:+.2f}",
+                    color
+                )
+                log.info(f"EXIT: {slug[:40]} (RESOLVED @ ${cp:.2f}) -- P&L: ${pnl_dollar:+.2f}")
+                self.cooldowns[slug] = self.poll_count + COOLDOWN_CANDLES
+                self.open_positions.remove(pos)
+
+    # --- CHANGE 6: Stale price detection ---
+
+    def check_stale_prices(self, prices: dict[str, float]):
+        """Warn if open position prices haven't changed for STALE_PRICE_THRESHOLD polls."""
+        for pos in self.open_positions:
+            slug = pos["market"]
+            if slug not in prices:
+                continue
+            cp = prices[slug]
+            if slug in self.last_prices and abs(cp - self.last_prices[slug]) < 1e-8:
+                self.stale_counts[slug] = self.stale_counts.get(slug, 0) + 1
+            else:
+                self.stale_counts[slug] = 0
+            self.last_prices[slug] = cp
+
+            if self.stale_counts[slug] == STALE_PRICE_THRESHOLD:
+                msg = f"WARNING: {slug[:40]} price unchanged for {STALE_PRICE_THRESHOLD}+ polls -- may have resolved"
+                self.add_activity(msg, "signal")
+                log.warning(msg)
 
     # --- Signal detection ---
 
@@ -429,6 +536,7 @@ class PaperTrader:
         """Execute pending entry signals at current prices (next-candle)."""
         for sig in list(self.pending_entries):
             slug = sig["market"]
+            # CHANGE 5: log when pending entries are discarded
             if slug not in prices:
                 self.add_activity(
                     f"ENTRY SKIPPED: {slug[:40]} -- price not available on execution cycle",
@@ -546,13 +654,14 @@ class PaperTrader:
         log.info("PolyTrader Paper Trading System")
         log.info(f"Capital: ${self.capital:,.2f} | Max positions: {MAX_CONCURRENT}")
         log.info(f"Costs: {(SPREAD_COST_PCT+SLIPPAGE_PCT)*200:.1f}% round-trip")
+        log.info(f"Market limit: {MARKET_FETCH_LIMIT} | Binary filter: ON")
         log.info(f"Dashboard: http://localhost:3000")
         log.info("=" * 60)
 
         # Fetch market list
         log.info("Fetching market list...")
         self.markets = fetch_market_list()
-        log.info(f"Found {len(self.markets)} markets")
+        log.info(f"Found {len(self.markets)} markets (after filtering)")
 
         while True:
             try:
@@ -576,6 +685,9 @@ class PaperTrader:
                         self.price_buffer[slug] = deque(maxlen=PRICE_BUFFER_SIZE)
                     self.price_buffer[slug].append((ts, price))
 
+                # CHANGE 4: check for resolved positions
+                self.check_resolved_positions(prices)
+
                 # Execute pending signals from last cycle (next-candle)
                 self.execute_pending_entries(prices)
                 self.execute_pending_exits(prices)
@@ -585,6 +697,9 @@ class PaperTrader:
 
                 # Check for new entry signals (also updates scan_info)
                 self.check_entry_signals(prices)
+
+                # CHANGE 6: check for stale prices on open positions
+                self.check_stale_prices(prices)
 
                 # Build descriptive activity feed message
                 si = self.scan_info
@@ -732,6 +847,7 @@ class PaperTrader:
                 "pnl_pct": round(unreal_pct, 2),
                 "pnl_dollar": round(unreal_dollar, 2),
                 "hold_time": int(time.time() - pos["entry_time"]),
+                "stale": self.stale_counts.get(slug, 0) >= STALE_PRICE_THRESHOLD,
             })
 
         # Stats
