@@ -167,6 +167,20 @@ class PaperTrader:
         # P&L history for chart
         self.pnl_history: list[dict] = []
 
+        # Scan diagnostics (updated each cycle)
+        self.scan_info: dict = {
+            "buffer_candles": 0,
+            "buffer_needed": SPIKE_WINDOW_CANDLES,
+            "scanning_active": False,
+            "markets_scanned": 0,
+            "largest_spike_pct": 0.0,
+            "largest_spike_market": "",
+            "adaptive_filtered": "",  # market that passed fixed but not adaptive
+            "adaptive_thresh_used": 0.0,
+            "status_phase": "building",  # building | scanning | signal | monitoring
+            "status_text": "",
+        }
+
         self.load_state()
 
     # --- State persistence ---
@@ -228,12 +242,38 @@ class PaperTrader:
 
     def check_entry_signals(self, prices: dict[str, float]):
         """Check for new entry signals using strategy logic."""
+        # Reset scan diagnostics
+        largest_spike = 0.0
+        largest_spike_market = ""
+        markets_scanned = 0
+        adaptive_filtered_market = ""
+        adaptive_filtered_thresh = 0.0
+
+        # Determine buffer depth (use max across all markets)
+        buffer_depths = [len(buf) for buf in self.price_buffer.values()] if self.price_buffer else [0]
+        max_buf = max(buffer_depths) if buffer_depths else 0
+        scanning_active = max_buf >= SPIKE_WINDOW_CANDLES + 1
+
+        self.scan_info["buffer_candles"] = max_buf
+        self.scan_info["scanning_active"] = scanning_active
+
+        if not scanning_active:
+            remaining_candles = SPIKE_WINDOW_CANDLES + 1 - max_buf
+            remaining_min = remaining_candles * 2
+            self.scan_info["status_phase"] = "building"
+            self.scan_info["status_text"] = (
+                f"Building price buffer: {max_buf}/{SPIKE_WINDOW_CANDLES} candles "
+                f"({remaining_min} minutes remaining)"
+            )
+
         for slug, current_price in prices.items():
             if slug not in self.price_buffer:
                 continue
             buf = self.price_buffer[slug]
             if len(buf) < SPIKE_WINDOW_CANDLES + 1:
                 continue
+
+            markets_scanned += 1
 
             # Cooldown check
             if slug in self.cooldowns and self.poll_count < self.cooldowns[slug]:
@@ -266,6 +306,11 @@ class PaperTrader:
 
             change = (current_price - past_price) / past_price
 
+            # Track largest spike
+            if abs(change) > abs(largest_spike):
+                largest_spike = change
+                largest_spike_market = slug
+
             # Adaptive threshold
             recent_changes = []
             for j in range(max(0, len(buf) - SPIKE_WINDOW_CANDLES - 1), len(buf) - 1):
@@ -280,6 +325,11 @@ class PaperTrader:
             else:
                 adaptive_thresh = SPIKE_THRESHOLD
 
+            # Track adaptive filtering
+            if abs(change) >= SPIKE_THRESHOLD and abs(change) < adaptive_thresh:
+                adaptive_filtered_market = slug
+                adaptive_filtered_thresh = adaptive_thresh
+
             if abs(change) >= adaptive_thresh:
                 direction = "short" if change > 0 else "long"
                 self.pending_entries.append({
@@ -293,6 +343,34 @@ class PaperTrader:
                     f"SIGNAL: {slug[:40]} spiked {change*100:.1f}% -- flagging {direction} entry",
                     "signal"
                 )
+
+        # Update scan diagnostics
+        self.scan_info["markets_scanned"] = markets_scanned
+        self.scan_info["largest_spike_pct"] = round(abs(largest_spike) * 100, 1)
+        self.scan_info["largest_spike_market"] = largest_spike_market[:40]
+        self.scan_info["adaptive_filtered"] = adaptive_filtered_market[:40]
+        self.scan_info["adaptive_thresh_used"] = round(adaptive_filtered_thresh * 100, 1)
+
+        # Update status phase
+        if self.pending_entries:
+            self.scan_info["status_phase"] = "signal"
+            sig = self.pending_entries[-1]
+            self.scan_info["status_text"] = (
+                f"SIGNAL DETECTED: {sig['market'][:40]} spiked {sig['change_pct']:.1f}% "
+                f"-- entering next cycle"
+            )
+        elif self.open_positions:
+            self.scan_info["status_phase"] = "monitoring"
+            self.scan_info["status_text"] = (
+                f"Monitoring {len(self.open_positions)} open position(s) -- "
+                f"scanning {markets_scanned} markets"
+            )
+        elif scanning_active:
+            self.scan_info["status_phase"] = "scanning"
+            self.scan_info["status_text"] = (
+                f"Scanning {markets_scanned} markets every 2 min -- "
+                f"largest spike this cycle: {abs(largest_spike)*100:.1f}% (need {SPIKE_THRESHOLD*100:.1f}%)"
+            )
 
     def check_exit_signals(self, prices: dict[str, float]):
         """Check open positions for exit conditions."""
@@ -473,8 +551,6 @@ class PaperTrader:
                         self.price_buffer[slug] = deque(maxlen=PRICE_BUFFER_SIZE)
                     self.price_buffer[slug].append((ts, price))
 
-                self.add_activity(f"Polled {n_prices} markets", "poll")
-
                 # Execute pending signals from last cycle (next-candle)
                 self.execute_pending_entries(prices)
                 self.execute_pending_exits(prices)
@@ -482,8 +558,31 @@ class PaperTrader:
                 # Check for new exit signals
                 self.check_exit_signals(prices)
 
-                # Check for new entry signals
+                # Check for new entry signals (also updates scan_info)
                 self.check_entry_signals(prices)
+
+                # Build descriptive activity feed message
+                si = self.scan_info
+                if not si["scanning_active"]:
+                    self.add_activity(
+                        f"Polled {n_prices} markets | Buffer: {si['buffer_candles']}/{SPIKE_WINDOW_CANDLES} candles",
+                        "poll"
+                    )
+                elif self.pending_entries:
+                    pass  # signal activity already added in check_entry_signals
+                else:
+                    parts = [f"Scanned {si['markets_scanned']} markets"]
+                    if si["largest_spike_pct"] > 0:
+                        parts.append(f"Top spike: {si['largest_spike_pct']:.1f}% in {si['largest_spike_market'][:25]}")
+                    else:
+                        parts.append("No spikes detected")
+                    parts.append(f"need {SPIKE_THRESHOLD*100:.1f}%")
+                    if si["adaptive_filtered"]:
+                        self.add_activity(
+                            f"Spike {si['adaptive_thresh_used']:.0f}% threshold filtered {si['adaptive_filtered'][:25]}",
+                            "info"
+                        )
+                    self.add_activity(" | ".join(parts), "poll")
 
                 # Record P&L for chart
                 total_equity = self.capital
@@ -628,6 +727,7 @@ class PaperTrader:
         total_equity = self.capital + sum(p["pos_value"] for p in self.open_positions)
 
         return {
+            "scan_info": self.scan_info,
             "capital": round(self.capital, 2),
             "equity": round(total_equity, 2),
             "pnl": round(total_equity - INITIAL_CAPITAL, 2),

@@ -15,7 +15,7 @@ body { font-family: 'Courier New', monospace; background: #0d1117; color: #c9d1d
 .green { color: #3fb950; } .red { color: #f85149; } .yellow { color: #d29922; } .gray { color: #8b949e; }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 .connected { background: #3fb950; } .disconnected { background: #f85149; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; background: #30363d; height: calc(100vh - 60px); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; background: #30363d; height: calc(100vh - 95px); }
 .panel { background: #0d1117; padding: 10px; overflow: auto; }
 .panel h3 { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -34,6 +34,14 @@ td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
 .stat .s-label { font-size: 10px; color: #8b949e; } .stat .s-value { font-size: 14px; font-weight: bold; }
 .empty { color: #484f58; font-style: italic; padding: 20px; text-align: center; }
 .pos-row-profit { background: #3fb95010; } .pos-row-loss { background: #f8514910; }
+.status-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 8px 20px; font-size: 13px; }
+.status-building { color: #d29922; }
+.status-scanning { color: #8b949e; }
+.status-signal { color: #3fb950; font-weight: bold; }
+.status-monitoring { color: #58a6ff; }
+.info-box { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 10px; margin-top: 8px; font-size: 11px; color: #8b949e; line-height: 1.5; }
+.info-box .highlight { color: #58a6ff; font-weight: bold; }
+.feed-info { color: #6e7681; }
 @media (max-width: 768px) { .grid { grid-template-columns: 1fr; grid-template-rows: auto; } .header { gap: 10px; } .header .metric .value { font-size: 16px; } }
 </style>
 </head>
@@ -66,6 +74,10 @@ td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
   </div>
 </div>
 
+<div class="status-bar" id="status-bar">
+  <span class="status-building" id="status-bar-text">Initializing -- waiting for first price poll...</span>
+</div>
+
 <div class="grid">
   <!-- Activity Feed -->
   <div class="panel" id="feed-panel">
@@ -77,7 +89,12 @@ td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
   <div class="panel">
     <h3>Open Positions</h3>
     <div id="positions-container">
-      <div class="empty" id="pos-empty">No open positions -- waiting for signals</div>
+      <div id="pos-empty">
+        <div class="empty">No open positions</div>
+        <div class="info-box" id="pos-info-box">
+          The strategy needs 20 candles (40 minutes) of price history before it can detect spikes. Waiting for buffer to fill...
+        </div>
+      </div>
       <table id="positions-table" style="display:none;">
         <thead><tr><th>Market</th><th>Dir</th><th>Entry</th><th>Current</th><th>P&L</th><th>Hold</th></tr></thead>
         <tbody id="positions-body"></tbody>
@@ -172,13 +189,35 @@ function updateAll(d) {
   document.getElementById('hdr-trades').textContent = d.trade_count;
   document.getElementById('hdr-capital').className = 'value ' + (d.capital >= 10000 ? 'green' : 'red');
 
+  // Status bar
+  const si = d.scan_info || {};
+  const sbar = document.getElementById('status-bar-text');
+  const phase = si.status_phase || 'building';
+  sbar.textContent = si.status_text || 'Initializing...';
+  sbar.className = 'status-' + phase;
+
+  // Info box in positions panel
+  const infoBox = document.getElementById('pos-info-box');
+  if (infoBox) {
+    if (phase === 'building') {
+      infoBox.innerHTML = `The strategy needs <span class="highlight">${si.buffer_needed || 20} candles (40 minutes)</span> of price history before it can detect spikes. Currently at <span class="highlight">${si.buffer_candles || 0}/${si.buffer_needed || 20}</span>.`;
+    } else if (d.open_count === 0) {
+      let info = `Scanning for <span class="highlight">15.5%+</span> price spikes. `;
+      if (si.largest_spike_pct > 0) {
+        info += `Last cycle's largest spike was <span class="highlight">${si.largest_spike_pct}%</span> in ${si.largest_spike_market || 'unknown'}. `;
+      }
+      info += `Trades are infrequent by design -- the backtest averaged ~28 trades/day across 198 markets.`;
+      infoBox.innerHTML = info;
+    }
+  }
+
   // Feed
   if (d.activity && d.activity.length > 0) {
     const feed = document.getElementById('feed');
     feed.innerHTML = d.activity.map(a => {
       const cls = a.level === 'poll' ? 'feed-poll' : a.level === 'signal' ? 'feed-signal'
         : a.level === 'entry' ? 'feed-entry' : a.level === 'profit' ? 'feed-profit'
-        : a.level === 'loss' ? 'feed-loss' : '';
+        : a.level === 'loss' ? 'feed-loss' : a.level === 'info' ? 'feed-info' : '';
       return `<div class="feed-item ${cls}"><span class="feed-time">[${a.time}]</span>${a.msg}</div>`;
     }).join('');
     if (feedAutoScroll) feedPanel.scrollTop = feedPanel.scrollHeight;
@@ -197,6 +236,7 @@ function updateAll(d) {
   } else {
     document.getElementById('pos-empty').style.display = '';
     document.getElementById('positions-table').style.display = 'none';
+    // Info box visibility handled above in status bar section
   }
 
   // Trades
