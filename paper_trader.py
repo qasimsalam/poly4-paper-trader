@@ -222,7 +222,8 @@ class PaperTrader:
         self.last_prices: dict[str, float] = {}
 
         self.load_state()
-        self.load_buffer()  # CHANGE 7
+        self.load_buffer()
+        self.load_trade_history()
 
     # --- State persistence ---
 
@@ -249,7 +250,32 @@ class PaperTrader:
             except Exception as e:
                 log.warning(f"Failed to load state: {e}")
 
-    # --- CHANGE 7: Buffer persistence ---
+    def load_trade_history(self):
+        """Load completed trades from trade_log.csv on startup."""
+        if not TRADE_LOG.exists():
+            return
+        try:
+            with open(TRADE_LOG) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get("action") == "exit":
+                        self.trade_history.append({
+                            "market": row.get("market", ""),
+                            "direction": row.get("direction", ""),
+                            "entry_price": 0, "exit_price": float(row.get("price", 0)),
+                            "fill_entry": 0, "fill_exit": float(row.get("fill_price", 0)),
+                            "pnl": float(row.get("position_pnl", 0)),
+                            "pnl_pct": 0,
+                            "hold_time": 0,
+                            "reason": "restored",
+                            "timestamp": row.get("timestamp", ""),
+                        })
+            if self.trade_history:
+                log.info(f"Restored {len(self.trade_history)} completed trades from trade_log.csv")
+        except Exception as e:
+            log.warning(f"Failed to load trade history: {e}")
+
+    # --- Buffer persistence ---
 
     def save_buffer(self):
         """Save price buffer to disk for instant resume."""
@@ -802,7 +828,11 @@ class PaperTrader:
 
     def get_full_state(self, prices: dict[str, float] = None) -> dict:
         if prices is None:
+            # Use last-known prices from buffer so initial connect shows real P&L
             prices = {}
+            for slug, buf in self.price_buffer.items():
+                if buf:
+                    prices[slug] = buf[-1][1]  # latest price from buffer
 
         positions_with_pnl = []
         for pos in self.open_positions:
