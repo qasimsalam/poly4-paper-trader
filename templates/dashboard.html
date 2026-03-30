@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PolyTrader Paper Trading</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Courier New', monospace; background: #0d1117; color: #c9d1d9; font-size: 13px; }
+.header { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+.header .metric { text-align: center; }
+.header .metric .label { font-size: 10px; color: #8b949e; text-transform: uppercase; }
+.header .metric .value { font-size: 22px; font-weight: bold; }
+.green { color: #3fb950; } .red { color: #f85149; } .yellow { color: #d29922; } .gray { color: #8b949e; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.connected { background: #3fb950; } .disconnected { background: #f85149; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; background: #30363d; height: calc(100vh - 60px); }
+.panel { background: #0d1117; padding: 10px; overflow: auto; }
+.panel h3 { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; color: #8b949e; font-size: 10px; text-transform: uppercase; padding: 4px 6px; border-bottom: 1px solid #21262d; }
+td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
+.feed-item { padding: 3px 0; border-bottom: 1px solid #161b2200; font-size: 12px; }
+.feed-time { color: #8b949e; margin-right: 6px; }
+.feed-poll { color: #8b949e; }
+.feed-signal { color: #d29922; }
+.feed-entry { color: #58a6ff; }
+.feed-profit { color: #3fb950; }
+.feed-loss { color: #f85149; }
+.chart-container { height: 200px; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.stat { background: #161b22; padding: 6px 8px; border-radius: 4px; }
+.stat .s-label { font-size: 10px; color: #8b949e; } .stat .s-value { font-size: 14px; font-weight: bold; }
+.empty { color: #484f58; font-style: italic; padding: 20px; text-align: center; }
+.pos-row-profit { background: #3fb95010; } .pos-row-loss { background: #f8514910; }
+@media (max-width: 768px) { .grid { grid-template-columns: 1fr; grid-template-rows: auto; } .header { gap: 10px; } .header .metric .value { font-size: 16px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="metric">
+    <div class="label">Capital</div>
+    <div class="value" id="hdr-capital">$10,000</div>
+  </div>
+  <div class="metric">
+    <div class="label">Total P&L</div>
+    <div class="value" id="hdr-pnl">$0.00</div>
+  </div>
+  <div class="metric">
+    <div class="label">Positions</div>
+    <div class="value" id="hdr-positions">0/10</div>
+  </div>
+  <div class="metric">
+    <div class="label">Trades</div>
+    <div class="value" id="hdr-trades">0</div>
+  </div>
+  <div class="metric">
+    <div class="label">Uptime</div>
+    <div class="value gray" id="hdr-uptime">0m</div>
+  </div>
+  <div class="metric">
+    <div class="label">Status</div>
+    <div class="value"><span class="status-dot disconnected" id="status-dot"></span><span id="status-text">Connecting</span></div>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Activity Feed -->
+  <div class="panel" id="feed-panel">
+    <h3>Live Activity Feed</h3>
+    <div id="feed"><div class="empty">Waiting for first poll...</div></div>
+  </div>
+
+  <!-- Open Positions -->
+  <div class="panel">
+    <h3>Open Positions</h3>
+    <div id="positions-container">
+      <div class="empty" id="pos-empty">No open positions -- waiting for signals</div>
+      <table id="positions-table" style="display:none;">
+        <thead><tr><th>Market</th><th>Dir</th><th>Entry</th><th>Current</th><th>P&L</th><th>Hold</th></tr></thead>
+        <tbody id="positions-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trade History -->
+  <div class="panel">
+    <h3>Trade History</h3>
+    <div id="trades-container">
+      <div class="empty" id="trades-empty">No completed trades yet</div>
+      <table id="trades-table" style="display:none;">
+        <thead><tr><th>Time</th><th>Market</th><th>Dir</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th></tr></thead>
+        <tbody id="trades-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart + Stats -->
+  <div class="panel">
+    <h3>Performance</h3>
+    <div class="chart-container"><canvas id="pnl-chart"></canvas></div>
+    <div class="stats-grid">
+      <div class="stat"><div class="s-label">Win Rate</div><div class="s-value" id="stat-winrate">--</div></div>
+      <div class="stat"><div class="s-label">Avg Return</div><div class="s-value" id="stat-avgret">--</div></div>
+      <div class="stat"><div class="s-label">Best Trade</div><div class="s-value green" id="stat-best">--</div></div>
+      <div class="stat"><div class="s-label">Worst Trade</div><div class="s-value red" id="stat-worst">--</div></div>
+      <div class="stat"><div class="s-label">Avg Hold</div><div class="s-value" id="stat-hold">--</div></div>
+      <div class="stat"><div class="s-label">Total Trades</div><div class="s-value" id="stat-total">0</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Chart setup
+const ctx = document.getElementById('pnl-chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [], datasets: [{
+    label: 'P&L ($)', data: [], borderColor: '#58a6ff', backgroundColor: '#58a6ff20',
+    fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2,
+  }]},
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#8b949e', maxTicksLimit: 8 }, grid: { color: '#21262d' } },
+      y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+    },
+  },
+});
+
+// State
+let startedAt = null;
+let feedAutoScroll = true;
+const feedPanel = document.getElementById('feed-panel');
+feedPanel.addEventListener('scroll', () => {
+  feedAutoScroll = feedPanel.scrollHeight - feedPanel.scrollTop - feedPanel.clientHeight < 50;
+});
+
+// WebSocket
+let ws = null;
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => {
+    document.getElementById('status-dot').className = 'status-dot connected';
+    document.getElementById('status-text').textContent = 'Connected';
+  };
+  ws.onclose = () => {
+    document.getElementById('status-dot').className = 'status-dot disconnected';
+    document.getElementById('status-text').textContent = 'Reconnecting...';
+    setTimeout(connect, 3000);
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'state' || msg.type === 'update') updateAll(msg.data);
+  };
+}
+connect();
+
+function updateAll(d) {
+  startedAt = d.started_at;
+
+  // Header
+  document.getElementById('hdr-capital').textContent = '$' + d.capital.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  const pnlEl = document.getElementById('hdr-pnl');
+  pnlEl.textContent = (d.pnl >= 0 ? '+' : '') + '$' + d.pnl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' (' + d.pnl_pct.toFixed(1) + '%)';
+  pnlEl.className = 'value ' + (d.pnl >= 0 ? 'green' : 'red');
+  document.getElementById('hdr-positions').textContent = d.open_count + '/' + d.max_positions;
+  document.getElementById('hdr-trades').textContent = d.trade_count;
+  document.getElementById('hdr-capital').className = 'value ' + (d.capital >= 10000 ? 'green' : 'red');
+
+  // Feed
+  if (d.activity && d.activity.length > 0) {
+    const feed = document.getElementById('feed');
+    feed.innerHTML = d.activity.map(a => {
+      const cls = a.level === 'poll' ? 'feed-poll' : a.level === 'signal' ? 'feed-signal'
+        : a.level === 'entry' ? 'feed-entry' : a.level === 'profit' ? 'feed-profit'
+        : a.level === 'loss' ? 'feed-loss' : '';
+      return `<div class="feed-item ${cls}"><span class="feed-time">[${a.time}]</span>${a.msg}</div>`;
+    }).join('');
+    if (feedAutoScroll) feedPanel.scrollTop = feedPanel.scrollHeight;
+  }
+
+  // Positions
+  if (d.positions && d.positions.length > 0) {
+    document.getElementById('pos-empty').style.display = 'none';
+    document.getElementById('positions-table').style.display = '';
+    document.getElementById('positions-body').innerHTML = d.positions.map(p => {
+      const cls = p.pnl_dollar >= 0 ? 'pos-row-profit' : 'pos-row-loss';
+      const pnlCls = p.pnl_dollar >= 0 ? 'green' : 'red';
+      const hold = Math.floor(p.hold_time / 60);
+      return `<tr class="${cls}"><td>${p.market}</td><td>${p.direction}</td><td>${p.entry_price}</td><td>${p.current_price}</td><td class="${pnlCls}">$${p.pnl_dollar.toFixed(2)} (${p.pnl_pct.toFixed(1)}%)</td><td>${hold}m</td></tr>`;
+    }).join('');
+  } else {
+    document.getElementById('pos-empty').style.display = '';
+    document.getElementById('positions-table').style.display = 'none';
+  }
+
+  // Trades
+  if (d.trades && d.trades.length > 0) {
+    document.getElementById('trades-empty').style.display = 'none';
+    document.getElementById('trades-table').style.display = '';
+    document.getElementById('trades-body').innerHTML = d.trades.slice().reverse().map(t => {
+      const pnlCls = t.pnl >= 0 ? 'green' : 'red';
+      const ts = t.timestamp ? t.timestamp.substring(11, 19) : '';
+      return `<tr><td>${ts}</td><td>${(t.market||'').substring(0,30)}</td><td>${t.direction}</td><td>${(t.entry_price||0).toFixed(3)}</td><td>${(t.exit_price||0).toFixed(3)}</td><td class="${pnlCls}">$${t.pnl.toFixed(2)}</td><td>${t.reason||''}</td></tr>`;
+    }).join('');
+  } else {
+    document.getElementById('trades-empty').style.display = '';
+    document.getElementById('trades-table').style.display = 'none';
+  }
+
+  // Chart
+  if (d.pnl_history && d.pnl_history.length > 0) {
+    chart.data.labels = d.pnl_history.map(h => h.time);
+    chart.data.datasets[0].data = d.pnl_history.map(h => h.pnl);
+    chart.update('none');
+  }
+
+  // Stats
+  const s = d.stats || {};
+  document.getElementById('stat-winrate').textContent = s.win_rate ? `${s.win_rate}% (${s.wins}W/${s.losses}L)` : '--';
+  document.getElementById('stat-avgret').textContent = s.avg_return ? `$${s.avg_return.toFixed(2)}` : '--';
+  document.getElementById('stat-best').textContent = s.best_trade ? `$${s.best_trade.pnl.toFixed(2)}` : '--';
+  document.getElementById('stat-worst').textContent = s.worst_trade ? `$${s.worst_trade.pnl.toFixed(2)}` : '--';
+  document.getElementById('stat-hold').textContent = s.avg_hold_min ? `${s.avg_hold_min.toFixed(0)}m` : '--';
+  document.getElementById('stat-total').textContent = d.trade_count || 0;
+}
+
+// Uptime timer
+setInterval(() => {
+  if (!startedAt) return;
+  const diff = (Date.now() - new Date(startedAt).getTime()) / 1000;
+  const h = Math.floor(diff / 3600); const m = Math.floor((diff % 3600) / 60);
+  document.getElementById('hdr-uptime').textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+}, 10000);
+</script>
+</body>
+</html>

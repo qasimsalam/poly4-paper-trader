@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets
+requests
+pandas
+pyarrow
+numpy
+jinja2
