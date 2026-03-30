@@ -4,3 +4,5 @@ state.json
 trades/
 data/
 .env
+paper_trader.log
+paper_trader.pid
