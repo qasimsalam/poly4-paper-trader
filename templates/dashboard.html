@@ -42,6 +42,7 @@ td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
 .info-box { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 10px; margin-top: 8px; font-size: 11px; color: #8b949e; line-height: 1.5; }
 .info-box .highlight { color: #58a6ff; font-weight: bold; }
 .feed-info { color: #6e7681; }
+.pnl-breakdown { font-size: 10px; color: #8b949e; margin-top: 2px; }
 @media (max-width: 768px) { .grid { grid-template-columns: 1fr; grid-template-rows: auto; } .header { gap: 10px; } .header .metric .value { font-size: 16px; } }
 </style>
 </head>
@@ -55,6 +56,11 @@ td { padding: 4px 6px; border-bottom: 1px solid #161b22; }
   <div class="metric">
     <div class="label">Total P&L</div>
     <div class="value" id="hdr-pnl">$0.00</div>
+    <div class="pnl-breakdown" id="hdr-pnl-breakdown">Realized: $0.00 | Unrealized: $0.00</div>
+  </div>
+  <div class="metric">
+    <div class="label">Equity</div>
+    <div class="value" id="hdr-equity">$10,000</div>
   </div>
   <div class="metric">
     <div class="label">Positions</div>
@@ -180,14 +186,32 @@ connect();
 function updateAll(d) {
   startedAt = d.started_at;
 
+  // Compute unrealized P&L from open positions
+  const unrealized = (d.positions || []).reduce((sum, p) => sum + (p.pnl_dollar || 0), 0);
+  const realized = d.pnl - unrealized;
+  const equity = d.capital + (d.positions || []).reduce((sum, p) => sum + (p.pnl_dollar || 0) + 500, 0);
+
   // Header
   document.getElementById('hdr-capital').textContent = '$' + d.capital.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('hdr-capital').className = 'value ' + (d.capital >= 10000 ? 'green' : 'red');
+
   const pnlEl = document.getElementById('hdr-pnl');
-  pnlEl.textContent = (d.pnl >= 0 ? '+' : '') + '$' + d.pnl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' (' + d.pnl_pct.toFixed(1) + '%)';
-  pnlEl.className = 'value ' + (d.pnl >= 0 ? 'green' : 'red');
+  const totalPnl = realized + unrealized;
+  pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ' (' + d.pnl_pct.toFixed(1) + '%)';
+  pnlEl.className = 'value ' + (totalPnl >= 0 ? 'green' : 'red');
+
+  const realStr = (realized >= 0 ? '+' : '') + '$' + realized.toFixed(2);
+  const unrealStr = (unrealized >= 0 ? '+' : '') + '$' + unrealized.toFixed(2);
+  document.getElementById('hdr-pnl-breakdown').innerHTML =
+    '<span style="color:' + (realized >= 0 ? '#3fb950' : '#f85149') + '">Real: ' + realStr + '</span>' +
+    ' | <span style="color:' + (unrealized >= 0 ? '#3fb950' : '#f85149') + '">Unreal: ' + unrealStr + '</span>';
+
+  const eqEl = document.getElementById('hdr-equity');
+  eqEl.textContent = '$' + d.equity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  eqEl.className = 'value ' + (d.equity >= 10000 ? 'green' : 'red');
+
   document.getElementById('hdr-positions').textContent = d.open_count + '/' + d.max_positions;
   document.getElementById('hdr-trades').textContent = d.trade_count;
-  document.getElementById('hdr-capital').className = 'value ' + (d.capital >= 10000 ? 'green' : 'red');
 
   // Status bar
   const si = d.scan_info || {};
