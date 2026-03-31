@@ -18,7 +18,7 @@ body{font-family:'Courier New',monospace;background:#0d1117;color:#c9d1d9;font-s
 .connected{background:#3fb950}.disconnected{background:#f85149}
 .status-bar{background:#161b22;border-bottom:1px solid #30363d;padding:6px 16px;font-size:11px}
 .status-building{color:#d29922}.status-scanning{color:#8b949e}.status-signal{color:#3fb950;font-weight:bold}.status-monitoring{color:#58a6ff}
-.grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 200px;gap:1px;background:#30363d;height:calc(100vh - 90px)}
+.grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 200px;gap:1px;background:#30363d;height:calc(100vh - 115px)}
 .panel{background:#0d1117;padding:8px;overflow:auto}
 .panel h3{font-size:10px;color:#8b949e;text-transform:uppercase;margin-bottom:6px;border-bottom:1px solid #21262d;padding-bottom:3px}
 table{width:100%;border-collapse:collapse;font-size:11px}
@@ -50,6 +50,7 @@ td{padding:3px 4px;border-bottom:1px solid #161b22}
   <div class="metric"><div class="label">Status</div><div class="value"><span class="status-dot disconnected" id="status-dot"></span><span id="status-text">Connecting</span></div></div>
 </div>
 <div class="status-bar"><span class="status-building" id="status-bar-text">Initializing...</span></div>
+<div class="status-bar" style="border-top:none;color:#6e7681;font-size:10px" id="stats-bar">Markets: -- | Filtered: -- | Eligible: -- | Positions: -- | Poll: --</div>
 
 <div class="grid">
   <!-- Activity Feed -->
@@ -154,6 +155,18 @@ function updateAll(d){
   const sb=document.getElementById('status-bar-text');
   sb.textContent=si.status_text||'Initializing...';
   sb.className='status-'+(si.status_phase||'building');
+
+  // Stats bar — persistent market/filter/position info
+  const fc=d.filter_counts||{};
+  const totalFetched=d.open_count+(si.markets_scanned||0); // approximate
+  const filtTemp=fc.temperature||0;const filtSport=fc.sports_short||0;const filtCrypto=fc.crypto_binary||0;
+  document.getElementById('stats-bar').innerHTML=
+    `Polled: <b>${Object.keys(d.positions||[]).length>0?si.markets_scanned||'--':'--'}</b> eligible`+
+    ` | Filtered: <b>${filtTemp}</b> temp, <b>${filtSport}</b> sports, <b>${filtCrypto}</b> crypto`+
+    ` | Scanning: <b>${si.markets_scanned||'--'}</b>`+
+    ` | Open: <b>${d.open_count}/${d.max_positions}</b>`+
+    ` | Trades: <b>${d.trade_count}</b>`+
+    ` | Top spike: <b>${si.largest_spike_pct||0}%</b> in ${(si.largest_spike_market||'--').substring(0,25)}`;
 
   // Info box
   const ib=document.getElementById('pos-info-box');
