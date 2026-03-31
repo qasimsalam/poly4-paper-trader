@@ -516,6 +516,16 @@ class PaperTrader:
                 continue
             ef = pos["fill_price"]
             pnl_pct = (cp - ef) / max(ef, 1e-6) if pos["direction"] == "long" else (ef - cp) / max(ef, 1e-6)
+
+            # BUG FIX 2: dollar-based max loss cap — exit IMMEDIATELY (no next-candle delay)
+            if pos["direction"] == "long":
+                dollar_pnl = (cp - ef) * pos["shares"]
+            else:
+                dollar_pnl = (ef - cp) * pos["shares"]
+            if dollar_pnl <= -pos["pos_value"]:  # loss exceeds position size ($500)
+                self._exit_position(pos, cp, "MAX_LOSS_CAP")
+                continue
+
             hold = now - pos["entry_time"]
             reason = None
             if pnl_pct >= REVERSION_EXIT:
@@ -546,6 +556,12 @@ class PaperTrader:
                 self.pending_entries.remove(sig); continue
 
             raw = prices[slug]
+            # BUG FIX 1: execution-time price check
+            if raw < 0.10 or raw > 0.90:
+                self.add_activity(
+                    f"ENTRY SKIPPED: {slug[:35]} -- price outside range at execution (${raw:.3f})", "signal")
+                log.info(f"ENTRY SKIPPED: {slug[:35]} -- price ${raw:.3f} outside 0.10-0.90 at execution")
+                self.pending_entries.remove(sig); continue
             fill = apply_costs(raw, sig["direction"], is_entry=True)
             pv = min(MAX_POSITION_SIZE, self.capital * 0.5)
             self.capital -= pv
