@@ -1,0 +1,188 @@
+{
+  "open_positions": [
+    {
+      "market": "will-apple-(aapl)-finish-week-of-march-30-above-$245?",
+      "direction": "long",
+      "entry_time": 1774907396.372427,
+      "entry_price": 0.35,
+      "fill_price": 0.35244999999999993,
+      "pos_value": 500.0,
+      "shares": 1418.6409419775857
+    },
+    {
+      "market": "bank-of-england-increases-interest-rates-by-25-bps-after-jun",
+      "direction": "short",
+      "entry_time": 1774907876.382949,
+      "entry_price": 0.43,
+      "fill_price": 0.42699,
+      "pos_value": 500.0,
+      "shares": 1170.9876109510762
+    },
+    {
+      "market": "will-s&p-500-(spx)-close-at-$6,000-$6,500-in-december?",
+      "direction": "short",
+      "entry_time": 1774907996.4050791,
+      "entry_price": 0.17,
+      "fill_price": 0.16881000000000002,
+      "pos_value": 500.0,
+      "shares": 2961.9098394644866
+    },
+    {
+      "market": "will-movsar-evloev-fight-alexander-volkanovski-next?",
+      "direction": "short",
+      "entry_time": 1774910756.386455,
+      "entry_price": 0.74,
+      "fill_price": 0.73482,
+      "pos_value": 500.0,
+      "shares": 680.4387469040037
+    },
+    {
+      "market": "will-the-price-of-solana-be-between-$70-and-$80-on-april-6?",
+      "direction": "short",
+      "entry_time": 1774912076.338256,
+      "entry_price": 0.35,
+      "fill_price": 0.34754999999999997,
+      "pos_value": 500.0,
+      "shares": 1438.641922025608
+    },
+    {
+      "market": "will-threadguy-appear-on-the-uponly-podcast-by-december-31?",
+      "direction": "long",
+      "entry_time": 1774913396.372895,
+      "entry_price": 0.3,
+      "fill_price": 0.3021,
+      "pos_value": 500.0,
+      "shares": 1655.0810989738497
+    },
+    {
+      "market": "san-lorenzo-vs.-gimnasia",
+      "direction": "long",
+      "entry_time": 1774914116.423171,
+      "entry_price": 0.24,
+      "fill_price": 0.24167999999999998,
+      "pos_value": 500.0,
+      "shares": 2068.8513737173125
+    },
+    {
+      "market": "will-donald-trump-post-100-119-truth-social-posts-from-march",
+      "direction": "short",
+      "entry_time": 1774915121.84026,
+      "entry_price": 0.77,
+      "fill_price": 0.76461,
+      "pos_value": 500.0,
+      "shares": 653.9281463752762
+    },
+    {
+      "market": "suns-vs.-grizzlies:-o/u-229.5",
+      "direction": "short",
+      "entry_time": 1774916800.561381,
+      "entry_price": 0.61,
+      "fill_price": 0.60573,
+      "pos_value": 500.0,
+      "shares": 825.4502831294471
+    },
+    {
+      "market": "will-another-country-conduct-military-action-against-iran-by",
+      "direction": "short",
+      "entry_time": 1774916800.56204,
+      "entry_price": 0.29,
+      "fill_price": 0.28797,
+      "pos_value": 500.0,
+      "shares": 1736.2919748584923
+    },
+    {
+      "market": "bulls-vs.-spurs:-o/u-244.5",
+      "direction": "long",
+      "entry_time": 1774917880.487199,
+      "entry_price": 0.23,
+      "fill_price": 0.23160999999999998,
+      "pos_value": 500.0,
+      "shares": 2158.801433444152
+    },
+    {
+      "market": "will-the-price-of-bitcoin-be-above-$68,000-on-march-31?",
+      "direction": "short",
+      "entry_time": 1774918120.550851,
+      "entry_price": 0.27,
+      "fill_price": 0.26811,
+      "pos_value": 376.2206647596401,
+      "shares": 1403.2324969588606
+    },
+    {
+      "market": "iran-x-israel/us-conflict-ends-by-april-30?",
+      "direction": "short",
+      "entry_time": 1774918600.594034,
+      "entry_price": 0.28,
+      "fill_price": 0.27804,
+      "pos_value": 381.6994539927946,
+      "shares": 1372.8220903207975
+    },
+    {
+      "market": "us-x-iran-ceasefire-by-april-30?",
+      "direction": "short",
+      "entry_time": 1774918960.559094,
+      "entry_price": 0.38,
+      "fill_price": 0.37734,
+      "pos_value": 314.11189184247473,
+      "shares": 832.4373028103957
+    },
+    {
+      "market": "fed-emergency-rate-cut-before-2027?",
+      "direction": "long",
+      "entry_time": 1774919800.612736,
+      "entry_price": 0.15,
+      "fill_price": 0.15105,
+      "pos_value": 500.0,
+      "shares": 3310.1621979476995
+    },
+    {
+      "market": "ledger-ipo-before-2027?",
+      "direction": "short",
+      "entry_time": 1774920040.5091321,
+      "entry_price": 0.42,
+      "fill_price": 0.41706,
+      "pos_value": 411.2140678817284,
+      "shares": 985.9829949688975
+    },
+    {
+      "market": "named-storm-forms-before-hurricane-season?",
+      "direction": "long",
+      "entry_time": 1774921000.764977,
+      "entry_price": 0.23,
+      "fill_price": 0.23160999999999998,
+      "pos_value": 464.1555142806767,
+      "shares": 2004.0391791402649
+    },
+    {
+      "market": "taylor-swift-pregnant-before-2027?",
+      "direction": "long",
+      "entry_time": 1774921840.619166,
+      "entry_price": 0.16,
+      "fill_price": 0.16111999999999999,
+      "pos_value": 422.8503426021771,
+      "shares": 2624.443536508051
+    },
+    {
+      "market": "trump-announces-end-of-military-operations-against-iran-by-a",
+      "direction": "long",
+      "entry_time": 1774922440.617142,
+      "entry_price": 0.11,
+      "fill_price": 0.11077,
+      "pos_value": 500.0,
+      "shares": 4513.857542655954
+    },
+    {
+      "market": "pistons-vs.-thunder",
+      "direction": "long",
+      "entry_time": 1774922680.6588302,
+      "entry_price": 0.11,
+      "fill_price": 0.11077,
+      "pos_value": 467.04940934560824,
+      "shares": 4216.388998335364
+    }
+  ],
+  "capital": 467.04940934560824,
+  "trade_count": 46,
+  "started_at": "2026-03-30T21:07:53.956386+00:00",
+  "last_poll": "2026-03-31T02:06:30.279678+00:00"
+}

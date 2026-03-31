@@ -62,9 +62,8 @@ TRADE_CATEGORIES_FILE = Path("trades/trade_categories.csv")
 TEMPLATE_DIR = Path("templates")
 BUFFER_FILE = Path("data/price_buffer.json")
 
-BINARY_PATTERNS = re.compile(r'up.or.down|up-or-down', re.IGNORECASE)
-TEMPERATURE_PATTERNS = re.compile(r'temperature|highest.temperature|lowest.temperature', re.IGNORECASE)
-SPORTS_SHORT_PATTERNS = re.compile(r'win-on-|end-in-a-draw|exact-score', re.IGNORECASE)
+# No market type filters — matching backtest conditions exactly
+# All categorization is tracked in trade_categories.csv for analysis
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("paper_trader")
@@ -141,8 +140,9 @@ def apply_costs(price: float, direction: str, is_entry: bool) -> float:
 # ---------------------------------------------------------------------------
 
 async def fetch_market_list_async() -> tuple[list[dict], dict[str, int]]:
+    """Fetch markets with only volume filter — no market type filters."""
     markets = []
-    filter_counts = {"crypto_binary": 0, "temperature": 0, "sports_short": 0}
+    filter_counts = {}  # no type filters, kept for API compatibility
     sem = asyncio.Semaphore(API_CONCURRENCY)
 
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
@@ -175,15 +175,6 @@ async def fetch_market_list_async() -> tuple[list[dict], dict[str, int]]:
                     continue
                 slug = (m.get("question", "unknown"))[:60].lower().replace(" ", "-")
                 question = m.get("question", "")
-                if TEMPERATURE_PATTERNS.search(slug) or TEMPERATURE_PATTERNS.search(question):
-                    filter_counts["temperature"] += 1
-                    continue
-                if SPORTS_SHORT_PATTERNS.search(slug) or SPORTS_SHORT_PATTERNS.search(question):
-                    filter_counts["sports_short"] += 1
-                    continue
-                if BINARY_PATTERNS.search(slug) or BINARY_PATTERNS.search(question):
-                    filter_counts["crypto_binary"] += 1
-                    continue
                 markets.append({
                     "slug": slug, "token_id": token_ids[0], "question": question,
                 })
@@ -592,10 +583,7 @@ class PaperTrader:
 
         log.info("Fetching market list...")
         self.markets, self.filter_counts = await fetch_market_list_async()
-        fc = self.filter_counts
-        log.info(f"Found {len(self.markets)} markets | Filtered: "
-                 f"{fc.get('temperature',0)} temp, {fc.get('sports_short',0)} sports, "
-                 f"{fc.get('crypto_binary',0)} crypto")
+        log.info(f"Found {len(self.markets)} markets (vol>$10K, no type filters)")
 
         while True:
             try:
@@ -625,15 +613,13 @@ class PaperTrader:
 
                 # Poll log
                 si = self.scan_info
-                fc = self.filter_counts
                 if not si["scanning_active"]:
                     self.add_activity(f"Polled {np_} | Buffer: {si['buffer_candles']}/{SPIKE_WINDOW_CANDLES}", "poll")
                 elif not self.pending_entries:
                     spike_str = f"Top: {si['largest_spike_pct']:.1f}% in {si['largest_spike_market'][:20]}" if si['largest_spike_pct'] > 0 else "No spikes"
                     self.add_activity(
-                        f"Polled {np_} | Filtered: {fc.get('temperature',0)} temp, "
-                        f"{fc.get('crypto_binary',0)} crypto | "
-                        f"Scanning: {si['markets_scanned']} | {spike_str} (need {SPIKE_THRESHOLD*100:.1f}%)", "poll")
+                        f"Polled {np_} | Scanning: {si['markets_scanned']} eligible | "
+                        f"{spike_str} (need {SPIKE_THRESHOLD*100:.1f}%)", "poll")
 
                 # Equity
                 equity = self.capital

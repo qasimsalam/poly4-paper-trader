@@ -156,14 +156,9 @@ function updateAll(d){
   sb.textContent=si.status_text||'Initializing...';
   sb.className='status-'+(si.status_phase||'building');
 
-  // Stats bar — persistent market/filter/position info
-  const fc=d.filter_counts||{};
-  const totalFetched=d.open_count+(si.markets_scanned||0); // approximate
-  const filtTemp=fc.temperature||0;const filtSport=fc.sports_short||0;const filtCrypto=fc.crypto_binary||0;
+  // Stats bar
   document.getElementById('stats-bar').innerHTML=
-    `Polled: <b>${Object.keys(d.positions||[]).length>0?si.markets_scanned||'--':'--'}</b> eligible`+
-    ` | Filtered: <b>${filtTemp}</b> temp, <b>${filtSport}</b> sports, <b>${filtCrypto}</b> crypto`+
-    ` | Scanning: <b>${si.markets_scanned||'--'}</b>`+
+    `Scanning: <b>${si.markets_scanned||'--'}</b> eligible (vol>$10K, price 0.10-0.90)`+
     ` | Open: <b>${d.open_count}/${d.max_positions}</b>`+
     ` | Trades: <b>${d.trade_count}</b>`+
     ` | Top spike: <b>${si.largest_spike_pct||0}%</b> in ${(si.largest_spike_market||'--').substring(0,25)}`;
